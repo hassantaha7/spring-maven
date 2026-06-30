@@ -10,6 +10,9 @@ on:
       - main
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   devsecops:
     name: Build, SonarQube, Nexus & Docker
@@ -19,17 +22,31 @@ jobs:
       MAVEN_OPTS: "-Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repository without GitHub action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+          git init
+          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
+
+          AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 -w0)
+
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" fetch --depth 1 origin "$GITHUB_SHA"
+          git checkout --force FETCH_HEAD
 
       - name: Fix Maven wrapper permissions
         run: chmod +x mvnw
 
-      - name: Check Java and Docker
+      - name: Check Java Docker Nexus Sonar
         run: |
           java -version
           docker --version
           docker ps
+          curl -I http://localhost:8081
+          curl -I http://localhost:9000
 
       - name: Build and test with Maven
         run: ./mvnw clean verify
