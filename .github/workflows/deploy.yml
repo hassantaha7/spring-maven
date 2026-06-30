@@ -32,7 +32,7 @@ jobs:
           git init
           git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
 
-          AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 -w0)
+          AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 | tr -d '\n')
 
           git -c http.extraheader="AUTHORIZATION: basic ${AUTH_HEADER}" fetch --depth 1 origin "$GITHUB_SHA"
           git checkout --force FETCH_HEAD
@@ -60,9 +60,12 @@ jobs:
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
       - name: Configure Maven settings for Nexus
+        env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<'EOF'
+          cat > ~/.m2/settings.xml <<EOF
           <settings>
             <servers>
               <server>
@@ -73,9 +76,13 @@ jobs:
             </servers>
           </settings>
           EOF
+
+      - name: Test Nexus authentication
         env:
           NEXUS_USER: ${{ secrets.NEXUS_USER }}
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+        run: |
+          curl -f -u "${NEXUS_USER}:${NEXUS_PASSWORD}" http://localhost:8081/service/rest/v1/status
 
       - name: Publish JAR to Nexus
         if: github.ref == 'refs/heads/main'
