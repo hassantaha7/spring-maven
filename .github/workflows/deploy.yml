@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   devsecops:
-    name: Build, SonarQube, Nexus & Docker
+    name: Build, SonarQube, Nexus, Trivy & Docker
     runs-on: self-hosted
 
     env:
@@ -62,17 +62,20 @@ jobs:
       - name: Configure Maven settings for Nexus
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
+          cat > ~/.m2/settings.xml <<'EOF'
           <settings>
             <servers>
               <server>
                 <id>nexus</id>
-                <username>${{ secrets.NEXUS_USER }}</username>
-                <password>${{ secrets.NEXUS_PASSWORD }}</password>
+                <username>${NEXUS_USER}</username>
+                <password>${NEXUS_PASSWORD}</password>
               </server>
             </servers>
           </settings>
           EOF
+        env:
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
       - name: Publish JAR to Nexus
         if: github.ref == 'refs/heads/main'
@@ -85,6 +88,18 @@ jobs:
       - name: Build Docker image
         if: github.ref == 'refs/heads/main'
         run: sudo docker build -t ${{ secrets.DOCKER_USERNAME }}/springboot-app:latest .
+
+      - name: Scan Docker image with Trivy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          sudo docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $HOME/.cache/trivy:/root/.cache \
+            aquasec/trivy:latest image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            ${{ secrets.DOCKER_USERNAME }}/springboot-app:latest
 
       - name: Push Docker image
         if: github.ref == 'refs/heads/main'
