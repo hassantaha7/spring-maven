@@ -19,15 +19,8 @@ jobs:
       MAVEN_OPTS: "-Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m"
 
     steps:
-      - name: Checkout repository manually
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-          git init
-          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
-          git -c http.extraheader="AUTHORIZATION: bearer $GH_TOKEN" fetch --depth 1 origin $GITHUB_SHA
-          git checkout --force FETCH_HEAD
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Fix Maven wrapper permissions
         run: chmod +x mvnw
@@ -36,6 +29,7 @@ jobs:
         run: |
           java -version
           docker --version
+          docker ps
 
       - name: Build and test with Maven
         run: ./mvnw clean verify
